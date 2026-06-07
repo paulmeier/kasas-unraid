@@ -1,0 +1,421 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>kasas</Name>
+  <Repository>ghcr.io/paulmeier/kasas:latest</Repository>
+  <Registry>https://github.com/paulmeier/kasas/pkgs/container/kasas</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+
+  <Support>https://github.com/paulmeier/kasas-unraid/issues</Support>
+  <Project>https://github.com/paulmeier/kasas</Project>
+
+  <Category>Productivity: Tools:</Category>
+
+  <Icon>https://raw.githubusercontent.com/paulmeier/kasas-unraid/main/icons/kasas.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/paulmeier/kasas-unraid/main/templates/kasas.xml</TemplateURL>
+
+  <WebUI>http://[IP]:[PORT:8080]</WebUI>
+
+  <Overview>kasas is a self-hosted, single-binary financial ledger. It ingests transactions from a SimpleFIN bridge into local SQLite (or Postgres) and exposes a REST API, a built-in MCP server (at /mcp), a read-only web dashboard (at /), a canonical event stream, outbound webhooks, and sandboxed plugins. It is the ledger that budgeting, tax, fraud-detection, forecasting, notification, and AI-agent apps build on, not a budgeting app itself. Provide a SimpleFIN setup token on first run (or add it later from the dashboard Settings page) to start syncing.</Overview>
+
+  <Requires>A SimpleFIN bridge credential (a one-time setup token or a claimed access URL) is needed to sync transactions. Get one from your SimpleFIN provider at simplefin.org. You can supply it here on first run or paste it into the dashboard Settings page afterwards. The mounted App Data directory must be writable by UID 65532 (the container runs as a non-root user): on Unraid, run  chown -R 65532:65532 /mnt/user/appdata/kasas  once before starting.</Requires>
+
+  <ExtraSearchTerms>finance ledger banking transactions simplefin mcp webhooks accounting budgeting sqlite postgres openbanking</ExtraSearchTerms>
+
+  <!-- ============================ PORT ============================ -->
+  <Config Name="WebUI / REST API / MCP Port"
+          Target="8080"
+          Default="8080"
+          Mode="tcp"
+          Type="Port"
+          Display="always"
+          Required="true"
+          Description="Host port mapped to the kasas HTTP server. Serves the web dashboard at /, the REST API at /api/v1, the MCP server at /mcp, and health/metrics endpoints. If you change this, leave the internal Listen Address at :8080 (the container always listens on 8080).">8080</Config>
+
+  <!-- ======================= REQUIRED DATA VOLUME ======================= -->
+  <Config Name="App Data"
+          Target="/data"
+          Default="/mnt/user/appdata/kasas"
+          Mode="rw"
+          Type="Path"
+          Display="always"
+          Required="true"
+          Description="Persistent storage for the SQLite database (kasas.db), the encrypted secret store (secrets.json, holds the SimpleFIN access URL and any dashboard token), and the plugins directory. Must persist across restarts. IMPORTANT: the container runs as non-root UID 65532, so this directory must be writable by it. On Unraid run once:  chown -R 65532:65532 /mnt/user/appdata/kasas">/mnt/user/appdata/kasas</Config>
+
+  <!-- ======================= SIMPLEFIN CREDENTIAL ======================= -->
+  <Config Name="SimpleFIN Setup Token"
+          Target="KASAS_SIMPLEFIN_SETUP_TOKEN"
+          Default=""
+          Mode=""
+          Type="Variable"
+          Display="always"
+          Required="false"
+          Mask="true"
+          Description="One-time base64 setup token from your SimpleFIN bridge. On first sync it is claimed for an access URL, which is then saved to the secret store (so the token is consumed only once). Leave blank if you prefer to paste the credential into the dashboard Settings page after the container starts, or if you are providing the SimpleFIN Access URL below instead."></Config>
+
+  <Config Name="SimpleFIN Access URL"
+          Target="KASAS_SIMPLEFIN_ACCESS_URL"
+          Default=""
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Mask="true"
+          Description="An already-claimed SimpleFIN access URL with embedded credentials, e.g. https://user:pass@bridge.simplefin.org/simplefin . Use this instead of a setup token if you have already claimed one. Stored to the secret store on first use. Leave blank if you are using the setup token above."></Config>
+
+  <!-- ======================= DASHBOARD SECURITY ======================= -->
+  <Config Name="Dashboard / API Token"
+          Target="KASAS_DASHBOARD_TOKEN"
+          Default=""
+          Mode=""
+          Type="Variable"
+          Display="always"
+          Required="false"
+          Mask="true"
+          Description="STRONGLY RECOMMENDED. Bearer token that gates the REST API, the web dashboard, and the MCP server (clients send  Authorization: Bearer THE-TOKEN ). Leave blank and kasas runs UNAUTHENTICATED: anyone who can reach this port can read your financial data and change settings. If blank you can instead generate and manage a token from the dashboard Settings page. The health and metrics endpoints are never gated."></Config>
+
+  <!-- ============================ LOGGING ============================ -->
+  <Config Name="Log Level"
+          Target="KASAS_LOG_LEVEL"
+          Default="info"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Logging verbosity: debug, info, warn, or error.">info</Config>
+
+  <Config Name="Log Format"
+          Target="KASAS_LOG_FORMAT"
+          Default="json"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Log output format: json (structured, good for log shippers) or text (human-readable).">json</Config>
+
+  <!-- ====================== INTERNAL LISTEN ADDRESS ====================== -->
+  <Config Name="Listen Address"
+          Target="KASAS_SERVER_ADDR"
+          Default=":8080"
+          Mode=""
+          Type="Variable"
+          Display="advanced-hide"
+          Required="false"
+          Description="Address the HTTP server binds inside the container. Keep this at :8080 — it must match the container side of the WebUI port mapping above. Change the host port in the Port setting instead.">:8080</Config>
+
+  <!-- ============================ DATABASE ============================ -->
+  <Config Name="Database Driver"
+          Target="KASAS_DATABASE_DRIVER"
+          Default="sqlite"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Storage backend: sqlite (default, zero-dependency, stored in App Data) or postgres. For postgres, run a separate Postgres container and set the Database DSN below.">sqlite</Config>
+
+  <Config Name="Database Path (SQLite)"
+          Target="KASAS_DATABASE_PATH"
+          Default="/data/kasas.db"
+          Mode=""
+          Type="Variable"
+          Display="advanced-hide"
+          Required="false"
+          Description="Path to the SQLite database file when the driver is sqlite. Keep it under /data so it lives in the App Data volume and persists.">/data/kasas.db</Config>
+
+  <Config Name="Database DSN (Postgres)"
+          Target="KASAS_DATABASE_DSN"
+          Default=""
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Mask="true"
+          Description="Postgres connection string, used only when the driver is postgres, e.g. postgres://user:pass@host:5432/kasas?sslmode=disable . Point it at a separate Postgres container on your Unraid server."></Config>
+
+  <!-- ====================== INTERFACES (MCP / DASHBOARD) ====================== -->
+  <Config Name="Enable MCP Server"
+          Target="KASAS_MCP_ENABLED"
+          Default="true"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Mount the built-in Model Context Protocol server at /mcp so AI agents can query and label your ledger. true or false.">true</Config>
+
+  <Config Name="Enable Web Dashboard"
+          Target="KASAS_DASHBOARD_ENABLED"
+          Default="true"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Serve the read-only web dashboard at the root path (/). true or false.">true</Config>
+
+  <!-- ============================ SYNC ============================ -->
+  <Config Name="Enable Sync"
+          Target="KASAS_SYNC_ENABLED"
+          Default="true"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Run the background sync loop that fetches new transactions from SimpleFIN on a schedule. true or false.">true</Config>
+
+  <Config Name="Sync Interval"
+          Target="KASAS_SYNC_INTERVAL"
+          Default="6h"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="How often to poll SimpleFIN for new data. Any Go duration, e.g. 30m, 1h, 6h, 12h.">6h</Config>
+
+  <Config Name="Sync Lookback Days"
+          Target="KASAS_SYNC_LOOKBACK_DAYS"
+          Default="90"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="How far back (in days) to fetch transactions on each sync. 0 means all available history.">90</Config>
+
+  <Config Name="Sync On Start"
+          Target="KASAS_SYNC_RUN_ON_START"
+          Default="true"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Run one sync immediately when the container starts, rather than waiting for the first interval. true or false.">true</Config>
+
+  <!-- ============================ EVENTS ============================ -->
+  <Config Name="Enable Event Stream"
+          Target="KASAS_EVENTS_ENABLED"
+          Default="true"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Record a canonical, append-only event for every meaningful change (transactions, accounts, labels, rules, sync). Read it via /api/v1/events, the SSE tail, or the list_events MCP tool. Webhooks and plugins both ride this bus, so disabling it also disables them. true or false.">true</Config>
+
+  <Config Name="Event Retention Days"
+          Target="KASAS_EVENTS_RETENTION_DAYS"
+          Default="0"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Prune events older than this many days on a periodic schedule. 0 (default) keeps every event forever so the stream stays fully replayable.">0</Config>
+
+  <Config Name="History Retention Days"
+          Target="KASAS_EVENTS_HISTORY_RETENTION_DAYS"
+          Default="0"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Prune the immutable per-transaction history (full snapshot per change) older than this many days. Independent of Event Retention Days. 0 (default) keeps all history forever.">0</Config>
+
+  <!-- ============================ WEBHOOKS ============================ -->
+  <Config Name="Enable Webhooks"
+          Target="KASAS_WEBHOOKS_ENABLED"
+          Default="true"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Deliver each matching event to HTTP endpoints you register (HMAC-signed), turning kasas into an integration hub. Effective only when the event stream is enabled. true or false.">true</Config>
+
+  <Config Name="Webhook Timeout"
+          Target="KASAS_WEBHOOKS_TIMEOUT"
+          Default="10s"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Per-attempt HTTP timeout for a single webhook delivery. Any Go duration, e.g. 5s, 10s, 30s.">10s</Config>
+
+  <Config Name="Webhook Max Attempts"
+          Target="KASAS_WEBHOOKS_MAX_ATTEMPTS"
+          Default="5"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="How many times to attempt a delivery (with exponential backoff) before giving up. Consumers can reconcile any gap by replaying from the event cursor.">5</Config>
+
+  <!-- ============================ PLUGINS ============================ -->
+  <Config Name="Enable Plugins"
+          Target="KASAS_PLUGINS_ENABLED"
+          Default="false"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Enable the sandboxed Lua plugin runtime that reacts to committed events. Off by default because a plugin is third-party code, so even when this is on, each plugin must still be enabled individually. Effective only when the event stream is enabled. true or false.">false</Config>
+
+  <Config Name="Plugins Directory"
+          Target="KASAS_PLUGINS_DIR"
+          Default="/data/plugins"
+          Mode=""
+          Type="Variable"
+          Display="advanced-hide"
+          Required="false"
+          Description="Directory scanned for plugin subdirectories (each a plugin.toml plus its Lua source). Keep it under /data so plugins persist in the App Data volume.">/data/plugins</Config>
+
+  <Config Name="Plugin Hook Timeout"
+          Target="KASAS_PLUGINS_HOOK_TIMEOUT"
+          Default="5s"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Wall-clock limit for a single plugin hook invocation (a runaway loop is interrupted at this deadline). Any Go duration, e.g. 5s.">5s</Config>
+
+  <Config Name="Plugin Queue Size"
+          Target="KASAS_PLUGINS_QUEUE_SIZE"
+          Default="256"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Per-plugin job-queue depth. A slow plugin drops jobs rather than stalling the bus, and consumers reconcile via the event cursor.">256</Config>
+
+  <!-- ======================= UPDATE CHECK (Docker-tuned) ======================= -->
+  <Config Name="Update Check"
+          Target="KASAS_UPDATE_CHECK"
+          Default="false"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Periodically check GitHub for a newer kasas release and show a dashboard banner. Defaulted to false here because Docker deployments update by pulling a new image, not in place. Set true to re-enable the informational check.">false</Config>
+
+  <Config Name="Allow In-Place Update"
+          Target="KASAS_UPDATE_ALLOW_APPLY"
+          Default="false"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Allow the dashboard and API to download and install a new kasas binary in place. Defaulted to false for containers: an in-place update is wiped on the next image pull and the endpoint is unauthenticated. Update by pulling a new image instead.">false</Config>
+
+  <Config Name="Update Repository"
+          Target="KASAS_UPDATE_REPOSITORY"
+          Default="paulmeier/kasas"
+          Mode=""
+          Type="Variable"
+          Display="advanced-hide"
+          Required="false"
+          Description="GitHub owner/name checked for releases when Update Check is enabled.">paulmeier/kasas</Config>
+
+  <!-- ============================ SECRET STORE ============================ -->
+  <Config Name="Secrets File"
+          Target="KASAS_SECRETS_FILE"
+          Default="/data/secrets.json"
+          Mode=""
+          Type="Variable"
+          Display="advanced-hide"
+          Required="false"
+          Description="Local JSON file (written 0600) that persists the SimpleFIN access URL and a dashboard-managed token when Vault is disabled. Keep it under /data so it persists.">/data/secrets.json</Config>
+
+  <!-- ====================== OPTIONAL: HASHICORP VAULT ====================== -->
+  <Config Name="Use Vault for Secrets"
+          Target="KASAS_VAULT_ENABLED"
+          Default="false"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Store the SimpleFIN access URL in HashiCorp Vault (KV v2) instead of the local secrets file. true or false. Leave false unless you run Vault.">false</Config>
+
+  <Config Name="Vault Address"
+          Target="KASAS_VAULT_ADDRESS"
+          Default=""
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Vault server address, e.g. http://127.0.0.1:8200 . Used only when Use Vault is true."></Config>
+
+  <Config Name="Vault Token"
+          Target="KASAS_VAULT_TOKEN"
+          Default=""
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Mask="true"
+          Description="Vault token used to read and write the secret. Used only when Use Vault is true."></Config>
+
+  <Config Name="Vault Mount"
+          Target="KASAS_VAULT_MOUNT"
+          Default="secret"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Vault KV v2 mount path. Used only when Use Vault is true.">secret</Config>
+
+  <Config Name="Vault Path"
+          Target="KASAS_VAULT_PATH"
+          Default="kasas"
+          Mode=""
+          Type="Variable"
+          Display="advanced"
+          Required="false"
+          Description="Vault KV v2 secret path. Used only when Use Vault is true.">kasas</Config>
+
+  <Config Name="Vault Access URL Key"
+          Target="KASAS_VAULT_ACCESS_URL_KEY"
+          Default="simplefin_access_url"
+          Mode=""
+          Type="Variable"
+          Display="advanced-hide"
+          Required="false"
+          Description="Key within the Vault secret under which the SimpleFIN access URL is stored. Used only when Use Vault is true.">simplefin_access_url</Config>
+
+  <!-- ============================ TAILSCALE ============================ -->
+  <!-- kasas ships as a non-root (UID 65532) scratch image. Unraid's CA Tailscale
+       integration starts tailscaled INSIDE the container and needs root, so it
+       errors with "No root privileges!" unless the container is run as root.
+       To use the in-container integration: enable Tailscale in Advanced View AND
+       run the container as root by adding a user override of 0:0 in Extra
+       Parameters. State persists via the dir below.
+       The simpler path needs none of this: install the Tailscale plugin on the
+       Unraid host and a bridge-network container is reachable on the host's
+       Tailscale IP at port 8080 automatically. See the README. -->
+  <Config Name="TailScale Fallback State Directory"
+          Target="CA_TS_FALLBACK_DIR"
+          Default="/data/tailscale"
+          Mode=""
+          Type="Variable"
+          Display="advanced-hide"
+          Required="false"
+          Description="Container directory where Unraid's CA Tailscale integration stores its state (machine key, node info) when Tailscale is enabled from the Advanced View. Kept under /data so it persists in the App Data volume. Because kasas runs as non-root, the in-container integration also requires running the container as root (a user override of 0:0 in Extra Parameters). See the README for details and the simpler host-plugin alternative.">/data/tailscale</Config>
+
+  <Description>
+    kasas is a self-hosted, single-binary financial ledger: the load-bearing layer that budgeting, tax, fraud-detection, forecasting, notification, and AI-agent apps build on. It syncs transactions from a SimpleFIN bridge into local SQLite (or Postgres) and exposes a REST API, an MCP server, a read-only web dashboard, a canonical event stream, outbound webhooks, and sandboxed plugins.
+
+    FIRST RUN:
+    1. Set the App Data path and, before starting, make it writable by the container user (it runs as non-root UID 65532). On Unraid run once at a terminal:  chown -R 65532:65532 /mnt/user/appdata/kasas
+    2. Provide a SimpleFIN Setup Token (or Access URL) so kasas can sync, or leave it blank and paste the credential into the dashboard Settings page after the container starts.
+    3. Open the dashboard at  http://YOUR-UNRAID-IP:8080
+
+    SECURITY:
+    By default kasas is UNAUTHENTICATED and serves your financial data to anyone who can reach the port. Set the Dashboard / API Token (or generate one from the Settings page) and keep the container on a trusted network. The token gates the REST API, the dashboard, and the MCP server; health and metrics endpoints are never gated.
+
+    INTERFACES:
+    REST API at /api/v1, MCP server at /mcp, dashboard at /, Prometheus metrics at /metrics, health at /healthz and /readyz. The event stream (/api/v1/events plus an SSE tail) powers webhooks and plugins.
+
+    POSTGRES:
+    To use Postgres instead of SQLite, run a separate Postgres container on Unraid, set Database Driver to postgres, and set the Database DSN to point at it. SQLite (the default) needs nothing extra.
+
+    UPDATES:
+    The in-app update checker and self-updater are turned off in this template because Docker deployments upgrade by pulling a new image. Update kasas from the Unraid Docker tab (Check for Updates, then apply) the same way as any other container.
+
+    TAILSCALE:
+    The easiest way to reach kasas over Tailscale is to install the Tailscale plugin on the Unraid host: a bridge-network container is then reachable on the host's Tailscale IP at port 8080 with no changes here. To instead give the container its own Tailscale node via Unraid's in-container integration, enable Tailscale in the Advanced View and add  --user 0:0  to Extra Parameters (required because kasas runs as non-root); its state persists in /data/tailscale. See the README for full details.
+  </Description>
+</Container>
