@@ -41,7 +41,7 @@
           Type="Path"
           Display="always"
           Required="true"
-          Description="Persistent storage for the SQLite database (kasas.db), the encrypted secret store (secrets.json, holds the SimpleFIN access URL and any dashboard token), and the plugins directory. Must persist across restarts. IMPORTANT: the container runs as non-root UID 65532, so this directory must be writable by it. On Unraid run once:  chown -R 65532:65532 /mnt/user/appdata/kasas">/mnt/user/appdata/kasas</Config>
+          Description="Persistent storage for the SQLite database (kasas.db), the encrypted secret store (secrets.json, holds the SimpleFIN access URL and any dashboard token), the plugins directory, and the config file. kasas seeds an annotated config.toml here on first run (appdata/kasas/config.toml) that you can edit. Must persist across restarts. IMPORTANT: the container runs as non-root UID 65532, so this directory must be writable by it. On Unraid run once:  chown -R 65532:65532 /mnt/user/appdata/kasas">/mnt/user/appdata/kasas</Config>
 
   <!-- ======================= SIMPLEFIN CREDENTIAL ======================= -->
   <Config Name="SimpleFIN Setup Token"
@@ -253,7 +253,7 @@
           Type="Variable"
           Display="advanced"
           Required="false"
-          Description="Enable the sandboxed Lua plugin runtime that reacts to committed events. Off by default because a plugin is third-party code, so even when this is on, each plugin must still be enabled individually. Effective only when the event stream is enabled. true or false.">false</Config>
+          Description="Enable the sandboxed plugin runtime (Lua, JS/TS, and Go/WASM) that reacts to committed events, and the community plugin Marketplace. Off by default because a plugin is third-party code, so even when this is on, each installed plugin must still be enabled individually. Effective only when the event stream is enabled. true or false.">false</Config>
 
   <Config Name="Plugins Directory"
           Target="KASAS_PLUGINS_DIR"
@@ -262,7 +262,7 @@
           Type="Variable"
           Display="advanced-hide"
           Required="false"
-          Description="Directory scanned for plugin subdirectories (each a plugin.toml plus its Lua source). Keep it under /data so plugins persist in the App Data volume.">/data/plugins</Config>
+          Description="Directory scanned for plugin subdirectories (each a plugin.toml plus its source: Lua, JS/TS, or a compiled WASM module). Keep it under /data so plugins persist in the App Data volume.">/data/plugins</Config>
 
   <Config Name="Plugin Hook Timeout"
           Target="KASAS_PLUGINS_HOOK_TIMEOUT"
